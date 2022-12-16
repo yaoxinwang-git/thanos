@@ -332,13 +332,13 @@ func (s *ProxyStore) Series(originalRequest *storepb.SeriesRequest, srv storepb.
 
 	for _, st := range stores {
 		st := st
-
+		storeAddr, isLocalStore := st.Addr()
 		storeDebugMsgs = append(storeDebugMsgs, fmt.Sprintf("store %s queried", st))
 
 		// This is used to cancel this stream when one operation takes too long.
 		seriesCtx, closeSeries := context.WithCancel(gctx)
 		seriesCtx = grpc_opentracing.ClientAddContextTags(seriesCtx, opentracing.Tags{
-			"target": st.Addr(),
+			"target": storeAddr,
 		})
 		defer closeSeries()
 
@@ -347,8 +347,9 @@ func (s *ProxyStore) Series(originalRequest *storepb.SeriesRequest, srv storepb.
 			storeID = "Store Gateway"
 		}
 		span, seriesCtx := tracing.StartSpan(seriesCtx, "proxy.series", tracing.Tags{
-			"store.id":   storeID,
-			"store.addr": st.Addr(),
+			"store.id":       storeID,
+			"store.addr":     storeAddr,
+			"store.is_local": isLocalStore,
 		})
 
 		respSet, err := newAsyncRespSet(srv.Context(), st, r, s.responseTimeout, s.retrievalStrategy, st.SupportsSharding(), &s.buffers, r.ShardInfo, reqLogger, s.metrics.emptyStreamResponses)
